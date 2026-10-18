@@ -36,3 +36,5 @@ next-env.d.ts
 
 # runtime data cache
 /data/runtime-ledger.json
+
+.vercel
