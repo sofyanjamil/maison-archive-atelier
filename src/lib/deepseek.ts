@@ -568,16 +568,16 @@ export async function generateDailyBriefWithDeepSeek(
     return {
       summaryHeadline:
         res.summaryHeadline ||
-        `${updates.filter((u) => u.status === "drop").length} Wishlist Price Drops Active — $${totalSavingsAvailable} Total Archive Savings`,
+        `${updates.filter((u) => u.status === "drop").length} Buylist Price Drops Active — $${totalSavingsAvailable} Total Archive Savings`,
       executiveBrief:
         res.executiveBrief ||
-        `GrokBot audited ${updates.length} wishlist pieces via DeepSeek V4.1 Flash. Total portfolio stands at $${totalWishlistValue.toLocaleString()}.`,
+        `GrokBot audited ${updates.length} buylist pieces via DeepSeek V4.1 Flash. Total portfolio stands at $${totalWishlistValue.toLocaleString()}.`,
     };
   } catch {
     const drops = updates.filter((u) => u.status === "drop").length;
     return {
-      summaryHeadline: `${drops} Wishlist Price Reductions Verified — $${totalSavingsAvailable} Available Savings`,
-      executiveBrief: `Daily Railway sweep audited ${updates.length} pieces across your wishlist. ${drops} pieces are trading below initial retail baseline.`,
+      summaryHeadline: `${drops} Buylist Price Reductions Verified — $${totalSavingsAvailable} Available Savings`,
+      executiveBrief: `Daily Railway sweep audited ${updates.length} pieces across your buylist. ${drops} pieces are trading below initial retail baseline.`,
     };
   }
 }

@@ -271,7 +271,7 @@ export default function PieceDossierModal({
                   <span>
                     {piece.collection === "wishlist"
                       ? "Move to Current Wardrobe"
-                      : "Move to Wishlist"}
+                      : "Move to Buylist"}
                   </span>
                 </button>
 

@@ -37,7 +37,7 @@ export default function PieceCard({
           {piece.category}
         </span>
         <span className="text-espresso-500 uppercase">
-          {piece.collection === "wardrobe" ? "Wardrobe" : "Wishlist"}
+          {piece.collection === "wardrobe" ? "Wardrobe" : "Buylist"}
         </span>
       </div>
 
@@ -143,7 +143,7 @@ export default function PieceCard({
             title={
               piece.collection === "wishlist"
                 ? "Move to Wardrobe"
-                : "Move to Wishlist"
+                : "Move to Buylist"
             }
           >
             {piece.collection === "wishlist" ? (

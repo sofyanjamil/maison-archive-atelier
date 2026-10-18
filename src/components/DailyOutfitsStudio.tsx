@@ -73,7 +73,7 @@ export default function DailyOutfitsStudio({
   const handleCurateAndRender = async (e: React.FormEvent) => {
     e.preventDefault();
     if (pieces.length === 0) {
-      setError("Add at least one piece to your Wishlist or Wardrobe first.");
+      setError("Add at least one piece to your Buylist or Wardrobe first.");
       return;
     }
     setError(null);
@@ -120,8 +120,8 @@ export default function DailyOutfitsStudio({
           {/* Mode Selector */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
             {[
-              { id: "hybrid_daily", title: "Wardrobe + Wishlist" },
-              { id: "wishlist_daily", title: "Wishlist Only" },
+              { id: "hybrid_daily", title: "Wardrobe + Buylist" },
+              { id: "wishlist_daily", title: "Buylist Only" },
               { id: "wardrobe_daily", title: "Wardrobe Only" },
               { id: "custom_selection", title: "Pick Pieces" },
             ].map((opt) => (

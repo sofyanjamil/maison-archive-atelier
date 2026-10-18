@@ -284,7 +284,7 @@ export async function ingestPieceFromUpload(input: {
         note:
           input.collection === "wardrobe"
             ? "Added to Personal Wardrobe"
-            : "Added to Wishlist",
+            : "Added to Buylist",
       },
     ],
     createdAt: new Date().toISOString(),
@@ -294,7 +294,7 @@ export async function ingestPieceFromUpload(input: {
   appendEvent(state, {
     type: "wardrobe_upload",
     actor: input.addedVia === "grokbot" ? "GrokBot" : "DeepSeek V4.1 Flash",
-    title: `Added ${piece.brand} ${piece.title} to ${piece.collection === "wardrobe" ? "Current Wardrobe" : "Wishlist"}`,
+    title: `Added ${piece.brand} ${piece.title} to ${piece.collection === "wardrobe" ? "Current Wardrobe" : "Buylist"}`,
     detail: `DeepSeek V4.1 Flash tagged: ${piece.labels.join(", ")} • Vibe: ${piece.vibe}.`,
     relatedId: piece.id,
   });

@@ -11,7 +11,7 @@ export async function GET() {
     version: "1.0.0",
     protocol: "mcp-streamable-http",
     description:
-      "GrokBot MCP Server for Maison Archive (Wishlist, Wardrobe, DeepSeek V4.1 Flash Curator, Daily Price Reports, and KIE Sunburst 2.5 Outfit Studio)",
+      "GrokBot MCP Server for Maison Archive (Buylist, Wardrobe, DeepSeek V4.1 Flash Curator, Daily Price Reports, and KIE Sunburst 2.5 Outfit Studio)",
     tools: MCP_TOOLS.map((t) => ({ name: t.name, description: t.description })),
   });
 }

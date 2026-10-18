@@ -349,7 +349,7 @@ export async function handleMcpJsonRpc(body: any): Promise<any> {
           output = {
             appUrl: "https://maison-archive-atelier.vercel.app",
             tab: args.tab || "wishlist",
-            wishlistCount: state.pieces.filter((p) => p.collection === "wishlist").length,
+            buylistCount: state.pieces.filter((p) => p.collection === "wishlist").length,
             wardrobeCount: state.pieces.filter((p) => p.collection === "wardrobe").length,
             outfitsCount: state.outfits.length,
           };
@@ -357,8 +357,9 @@ export async function handleMcpJsonRpc(body: any): Promise<any> {
         }
         case "archive_list_pieces": {
           let list = state.pieces;
-          if (args.collection && args.collection !== "all") {
-            list = list.filter((p) => p.collection === args.collection);
+          const col = args.collection === "buylist" ? "wishlist" : args.collection;
+          if (col && col !== "all") {
+            list = list.filter((p) => p.collection === col);
           }
           if (args.category) {
             list = list.filter(
@@ -372,9 +373,10 @@ export async function handleMcpJsonRpc(body: any): Promise<any> {
           break;
         }
         case "archive_upload_link": {
+          const col = args.collection === "wardrobe" ? "wardrobe" : "wishlist";
           const piece = await ingestPieceFromLink({
             url: args.url,
-            collection: args.collection || "wishlist",
+            collection: col,
             targetPrice: args.targetPrice,
             notes: args.notes,
             addedVia: "grokbot",
@@ -383,8 +385,9 @@ export async function handleMcpJsonRpc(body: any): Promise<any> {
           break;
         }
         case "archive_upload_piece": {
+          const col = args.collection === "wardrobe" ? "wardrobe" : "wishlist";
           const piece = await ingestPieceFromUpload({
-            collection: args.collection || "wishlist",
+            collection: col,
             title: args.title,
             brand: args.brand,
             category: args.category,

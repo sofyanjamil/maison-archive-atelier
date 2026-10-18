@@ -164,7 +164,7 @@ export default function MaisonArchivePage() {
         );
         showToast(
           `Moved to ${
-            nextCollection === "wardrobe" ? "Wardrobe" : "Wishlist"
+            nextCollection === "wardrobe" ? "Wardrobe" : "Buylist"
           }.`
         );
       }
@@ -270,7 +270,7 @@ export default function MaisonArchivePage() {
               {[
                 {
                   id: "wishlist",
-                  label: `Wishlist (${wishlistPieces.length})`,
+                  label: `Buylist (${wishlistPieces.length})`,
                   icon: Bookmark,
                 },
                 {
@@ -390,7 +390,7 @@ export default function MaisonArchivePage() {
               <div className="archive-card p-14 text-center rounded-sm space-y-4">
                 <p className="font-serif text-xl text-espresso-700">
                   {activeSection === "wishlist"
-                    ? "Your wishlist is empty."
+                    ? "Your buylist is empty."
                     : "Your wardrobe is empty."}
                 </p>
                 <div className="flex items-center justify-center">
@@ -405,7 +405,7 @@ export default function MaisonArchivePage() {
                     <Plus className="w-3.5 h-3.5 text-brass-400" />
                     <span>
                       Add to{" "}
-                      {activeSection === "wishlist" ? "Wishlist" : "Wardrobe"}
+                      {activeSection === "wishlist" ? "Buylist" : "Wardrobe"}
                     </span>
                   </button>
                 </div>

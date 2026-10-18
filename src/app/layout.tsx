@@ -34,9 +34,9 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MAISON ARCHIVE — Sartorial Wishlist, Wardrobe & Sunburst 2.5 Studio",
+  title: "MAISON ARCHIVE — Sartorial Buylist, Wardrobe & Sunburst 2.5 Studio",
   description:
-    "Vintage-modern sartorial acquisition ledger, personal wardrobe archive, DeepSeek V4.1 Flash (1017) curator, KIE.AI GPT Image 2.5 Sunburst flat-lay studio, and GrokBot Railway hub.",
+    "Vintage-modern sartorial buylist ledger, personal wardrobe archive, DeepSeek V4.1 Flash (1017) curator, KIE.AI GPT Image 2.5 Sunburst flat-lay studio, and GrokBot Railway hub.",
 };
 
 export default function RootLayout({

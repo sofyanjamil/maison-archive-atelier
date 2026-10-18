@@ -188,7 +188,7 @@ export default function AddPieceModal({
                   : "text-espresso-700"
               }`}
             >
-              Wishlist
+              Buylist
             </button>
             <button
               type="button"
