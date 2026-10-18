@@ -15,7 +15,11 @@ import {
   updateArchivePiece,
 } from "../src/lib/store";
 import { handleMcpJsonRpc, MCP_TOOLS } from "../src/lib/mcp-handler";
-import { getKieCreditBalance, uploadBase64ToKie } from "../src/lib/kie";
+import {
+  getKieCreditBalance,
+  rehostUrlOnKie,
+  uploadBase64ToKie,
+} from "../src/lib/kie";
 import {
   getDeepSeekModel,
   updatePieceSearchDataWithDeepSeek,
@@ -216,6 +220,11 @@ app.post("/api/pieces/:id/rediscover", async (c) => {
           : 0;
       const picked = discovery.imageCandidates[idx];
       patch.imageUrl = picked.rehostedUrl || picked.turl || picked.murl;
+      if (!picked.rehostedUrl && patch.imageUrl) {
+        patch.imageUrl = await rehostUrlOnKie(patch.imageUrl).catch(
+          () => patch.imageUrl
+        );
+      }
     }
 
     if (refined?.avgPriceIls && refined.avgPriceIls > 0) {

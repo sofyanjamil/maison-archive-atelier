@@ -3,6 +3,7 @@ import { loadLocalLedger, updateArchivePiece } from "@/lib/store";
 import { discoverProductImageAndIsraelPrice } from "@/lib/product-search";
 import { updatePieceSearchDataWithDeepSeek } from "@/lib/deepseek";
 import { proxyToRailwayIfConfigured } from "@/lib/railway-proxy";
+import { rehostUrlOnKie } from "@/lib/kie";
 
 export const maxDuration = 60;
 
@@ -63,6 +64,11 @@ export async function POST(
           : 0;
       const picked = discovery.imageCandidates[idx];
       patch.imageUrl = picked.rehostedUrl || picked.turl || picked.murl;
+      if (!picked.rehostedUrl && patch.imageUrl) {
+        patch.imageUrl = await rehostUrlOnKie(patch.imageUrl).catch(
+          () => patch.imageUrl
+        );
+      }
     }
 
     if (refined?.avgPriceIls && refined.avgPriceIls > 0) {
