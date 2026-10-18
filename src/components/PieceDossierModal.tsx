@@ -3,7 +3,6 @@
 import React, { useState } from "react";
 import {
   X,
-  Sparkles,
   ExternalLink,
   Trash2,
   ArrowRightLeft,
@@ -130,7 +129,6 @@ export default function PieceDossierModal({
               }}
               className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-espresso-900 hover:bg-espresso-800 text-parchment-50 text-xs font-mono uppercase tracking-wider rounded-sm shadow-md transition"
             >
-              <Sparkles className="w-4 h-4 text-brass-400" />
               <span>Generate Sunburst 2.5 Outfit</span>
             </button>
           </div>

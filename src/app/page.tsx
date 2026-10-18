@@ -3,12 +3,11 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import gsap from "gsap";
 import {
-  Sparkles,
   Plus,
   Search,
   Bookmark,
   Briefcase,
-  Wand2,
+  Layers,
   Activity,
 } from "lucide-react";
 import {
@@ -232,7 +231,7 @@ export default function MaisonArchivePage() {
     <div className="min-h-screen flex flex-col">
       {toastBanner && (
         <div className="fixed bottom-5 right-5 z-50 max-w-sm bg-espresso-900 text-parchment-50 border border-brass-400 px-4 py-2.5 rounded-sm shadow-2xl flex items-center gap-2.5 text-xs font-mono">
-          <Sparkles className="w-3.5 h-3.5 text-brass-400 shrink-0" />
+          <span className="w-1.5 h-1.5 rounded-full bg-brass-400 shrink-0" />
           <span>{toastBanner}</span>
         </div>
       )}
@@ -282,7 +281,7 @@ export default function MaisonArchivePage() {
                 {
                   id: "outfits",
                   label: `Daily Outfits (${outfits.length})`,
-                  icon: Wand2,
+                  icon: Layers,
                 },
                 {
                   id: "reports",

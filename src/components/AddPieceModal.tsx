@@ -6,7 +6,6 @@ import {
   X,
   Link2,
   Upload,
-  Sparkles,
   Loader2,
   CheckCircle2,
   Image as ImageIcon,
@@ -313,10 +312,7 @@ export default function AddPieceModal({
                       <span>Extracting...</span>
                     </>
                   ) : (
-                    <>
-                      <Sparkles className="w-3.5 h-3.5 text-brass-400" />
-                      <span>Extract & Label</span>
-                    </>
+                    <span>Extract & Label</span>
                   )}
                 </button>
               </div>
@@ -443,10 +439,7 @@ export default function AddPieceModal({
                       <span>Saving...</span>
                     </>
                   ) : (
-                    <>
-                      <Sparkles className="w-3.5 h-3.5 text-brass-400" />
-                      <span>Save Piece</span>
-                    </>
+                    <span>Save Piece</span>
                   )}
                 </button>
               </div>

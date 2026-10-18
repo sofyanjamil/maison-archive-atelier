@@ -2,7 +2,6 @@
 
 import React from "react";
 import {
-  Sparkles,
   ExternalLink,
   TrendingDown,
   Check,
@@ -124,10 +123,7 @@ export default function PieceCard({
                 <span>Styling...</span>
               </>
             ) : (
-              <>
-                <Sparkles className="w-3.5 h-3.5 text-brass-400" />
-                <span>Style Outfit</span>
-              </>
+              <span>Style Outfit</span>
             )}
           </button>
 

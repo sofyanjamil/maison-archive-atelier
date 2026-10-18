@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from "react";
 import {
-  Sparkles,
   Loader2,
   Check,
   RefreshCw,
@@ -235,10 +234,7 @@ export default function DailyOutfitsStudio({
                   <span>Generating Outfit...</span>
                 </>
               ) : (
-                <>
-                  <Sparkles className="w-4 h-4 text-brass-400" />
-                  <span>Generate Daily Outfit</span>
-                </>
+                <span>Generate Daily Outfit</span>
               )}
             </button>
           </div>
