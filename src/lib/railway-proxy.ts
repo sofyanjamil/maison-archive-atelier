@@ -5,7 +5,9 @@
  */
 export function getRailwayBaseUrl(): string | null {
   const raw =
-    process.env.RAILWAY_API_URL || process.env.NEXT_PUBLIC_RAILWAY_API_URL;
+    process.env.RAILWAY_API_URL ||
+    process.env.NEXT_PUBLIC_RAILWAY_API_URL ||
+    "https://maison-archive-grokbot-production.up.railway.app";
   if (!raw || !raw.trim()) return null;
   return raw.trim().replace(/\/+$/, "");
 }

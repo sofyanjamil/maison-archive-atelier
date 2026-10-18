@@ -61,8 +61,7 @@ export default function GrokBotHub({
   const latestReport = reports[0];
 
   const baseEndpoint =
-    railwayUrl ||
-    (typeof window !== "undefined" ? window.location.origin : "https://maison-archive.up.railway.app");
+    railwayUrl || "https://maison-archive-grokbot-production.up.railway.app";
 
   const mcpConfigJson = JSON.stringify(
     {
