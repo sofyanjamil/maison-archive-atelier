@@ -190,6 +190,12 @@ export default function MaisonArchivePage() {
     }
   };
 
+  const handleRefreshPiece = (piece: SartorialPiece) => {
+    setPieces((prev) => prev.map((p) => (p.id === piece.id ? piece : p)));
+    setInspectedPiece(piece);
+    showToast("Entry refreshed from live web search.");
+  };
+
   const handleDeletePiece = async (id: string) => {
     const res = await fetch(`/api/pieces/${id}`, { method: "DELETE" });
     if (res.ok) {
@@ -487,6 +493,7 @@ export default function MaisonArchivePage() {
         onGenerateOutfit={handleGenerateOutfitAroundPiece}
         onUpdatePiece={handleUpdatePiece}
         onDeletePiece={handleDeletePiece}
+        onRefreshPiece={handleRefreshPiece}
       />
     </div>
   );

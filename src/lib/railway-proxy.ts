@@ -14,14 +14,15 @@ export function getRailwayBaseUrl(): string | null {
 
 export async function proxyToRailwayIfConfigured(
   pathAndQuery: string,
-  init?: RequestInit
+  init?: RequestInit,
+  timeoutMs = 25000
 ): Promise<any | null> {
   const baseUrl = getRailwayBaseUrl();
   if (!baseUrl) return null;
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 25000);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     const res = await fetch(`${baseUrl}${pathAndQuery}`, {
       ...init,
       signal: controller.signal,

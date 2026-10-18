@@ -19,7 +19,8 @@ export async function POST(req: NextRequest) {
       {
         method: "POST",
         body: JSON.stringify(body),
-      }
+      },
+      52000
     );
     if (railwayRes?.piece) {
       return NextResponse.json(railwayRes, { status: 201 });

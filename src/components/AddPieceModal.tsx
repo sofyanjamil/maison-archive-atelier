@@ -44,6 +44,7 @@ export default function AddPieceModal({
   const [brand, setBrand] = useState("");
   const [category, setCategory] = useState<SartorialCategory>("Jackets");
   const [price, setPrice] = useState("");
+  const [avgPriceIls, setAvgPriceIls] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [imageBase64, setImageBase64] = useState<string | undefined>(undefined);
 
@@ -131,6 +132,7 @@ export default function AddPieceModal({
           brand: brand.trim() || undefined,
           category,
           price: price ? Number(price) : undefined,
+          avgPriceIls: avgPriceIls ? Number(avgPriceIls) : undefined,
           targetPrice: targetPrice ? Number(targetPrice) : undefined,
           imageBase64,
           imageUrl: imageUrl.trim() || undefined,
@@ -145,6 +147,7 @@ export default function AddPieceModal({
       setTitle("");
       setBrand("");
       setPrice("");
+      setAvgPriceIls("");
       setImageUrl("");
       setImageBase64(undefined);
     } catch (err: any) {
@@ -376,6 +379,18 @@ export default function AddPieceModal({
                     value={price}
                     onChange={(e) => setPrice(e.target.value)}
                     placeholder="0"
+                    className="w-full px-3 py-2 bg-white border border-espresso-900/20 rounded-sm text-sm font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-mono uppercase tracking-wider text-espresso-700 mb-1">
+                    Avg in Israel (₪)
+                  </label>
+                  <input
+                    type="number"
+                    value={avgPriceIls}
+                    onChange={(e) => setAvgPriceIls(e.target.value)}
+                    placeholder="Auto-find"
                     className="w-full px-3 py-2 bg-white border border-espresso-900/20 rounded-sm text-sm font-mono"
                   />
                 </div>

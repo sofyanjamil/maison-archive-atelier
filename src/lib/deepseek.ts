@@ -1,6 +1,5 @@
 import {
   ColorSwatch,
-  DailyOutfit,
   OutfitGenerationMode,
   PriceItemUpdate,
   SARTORIAL_CATEGORIES,
@@ -8,6 +7,8 @@ import {
   SartorialPiece,
 } from "./types";
 import { ScrapedPageData } from "./scraper";
+import { discoverProductImageAndIsraelPrice } from "./product-search";
+import { rehostUrlOnKie } from "./kie";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -23,27 +24,6 @@ function getOpenRouterKey(): string {
   return key;
 }
 
-const CATEGORY_FALLBACK_IMAGES: Record<SartorialCategory, string> = {
-  Fragrances:
-    "https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?auto=format&fit=crop&w=1000&q=85",
-  Watches:
-    "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=1000&q=85",
-  Sunglasses:
-    "https://images.unsplash.com/photo-1511499767150-a48a237f0083?auto=format&fit=crop&w=1000&q=85",
-  Wallets:
-    "https://images.unsplash.com/photo-1627123424574-724758594e93?auto=format&fit=crop&w=1000&q=85",
-  Shirts:
-    "https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?auto=format&fit=crop&w=1000&q=85",
-  "T-Shirts":
-    "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=1000&q=85",
-  "Men's Apparel":
-    "https://images.unsplash.com/photo-1507679799987-c73779587ccf?auto=format&fit=crop&w=1000&q=85",
-  Pants:
-    "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?auto=format&fit=crop&w=1000&q=85",
-  Jackets:
-    "https://images.unsplash.com/photo-1551028719-00167b16eac5?auto=format&fit=crop&w=1000&q=85",
-};
-
 export function normalizeCategory(raw?: string): SartorialCategory {
   if (!raw) return "Men's Apparel";
   const lower = raw.toLowerCase().trim();
@@ -55,7 +35,9 @@ export function normalizeCategory(raw?: string): SartorialCategory {
     lower.includes("perfume") ||
     lower.includes("parfum") ||
     lower.includes("cologne") ||
-    lower.includes("scent")
+    lower.includes("scent") ||
+    lower.includes("edp") ||
+    lower.includes("edt")
   )
     return "Fragrances";
   if (
@@ -151,7 +133,7 @@ export async function callDeepSeekJson<T = any>(
       messages,
       response_format: { type: "json_object" },
       reasoning: { effort },
-      temperature: 0.4,
+      temperature: 0.3,
     }),
   });
 
@@ -170,9 +152,12 @@ export interface DeepSeekExtractedProduct {
   brand: string;
   category: SartorialCategory;
   price: number;
+  avgPriceIls: number;
+  israelPriceNote: string;
   originalPrice?: number;
   currency: string;
   imageUrl: string;
+  galleryImages: string[];
   labels: string[];
   vibe: string;
   vibeDescription: string;
@@ -183,193 +168,303 @@ export interface DeepSeekExtractedProduct {
   priority: "grail" | "high" | "standard";
 }
 
+function slugToReadableQuery(url?: string): string {
+  if (!url) return "";
+  try {
+    const u = new URL(url);
+    const parts = u.pathname
+      .split("/")
+      .filter((p) => p.length > 2 && !/^\d+$/.test(p));
+    return parts
+      .join(" ")
+      .replace(/[-_]+/g, " ")
+      .replace(/\.(html|htm|php|aspx)$/i, "")
+      .trim();
+  } catch {
+    return "";
+  }
+}
+
 /**
- * Uses DeepSeek V4.1 Flash (deepseek/deepseek-v4.1-flash-1017) to analyze a scraped product URL
- * or uploaded piece (supports multimodal image inspection!) and return rich sartorial labels & vibes.
+ * Uses DeepSeek V4.1 Flash (deepseek/deepseek-v4.1-flash-1017) + Live Web Image & Israel Market Search
+ * to find a real product image, calculate the average price in Israel (₪ ILS), and assign sartorial labels.
  */
 export async function analyzeProductWithDeepSeek(input: {
   scraped?: ScrapedPageData;
   manualTitle?: string;
   manualBrand?: string;
   manualPrice?: number;
+  manualPriceIls?: number;
   manualCategory?: string;
   manualImageUrl?: string;
   manualNotes?: string;
 }): Promise<DeepSeekExtractedProduct> {
   const s = input.scraped;
-  const candidateImage =
-    input.manualImageUrl || s?.imageUrl || s?.galleryImages?.[0];
 
-  const systemPrompt = `You are the Chief Archivist & Sartorial Curator at Maison Archive (1974 Heritage Menswear & Horology Ledger), powered by DeepSeek V4.1 Flash (1017).
-Analyze the provided product listing / link extraction / image and return a strict JSON object with these exact keys:
-- "title": Refined, accurate product name (string)
+  // Build search query to find real product images & Israel market prices (₪ ILS)
+  const initialQuery = [
+    input.manualBrand || s?.brand || "",
+    input.manualTitle || s?.title || slugToReadableQuery(s?.url),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  const webDiscovery = await discoverProductImageAndIsraelPrice(
+    initialQuery || "luxury menswear product",
+    input.manualCategory
+  );
+
+  const allImageCandidates = [
+    ...(input.manualImageUrl ? [input.manualImageUrl] : []),
+    ...(s?.imageUrl ? [s.imageUrl] : []),
+    ...(s?.galleryImages || []),
+    ...(webDiscovery.primaryImageUrl ? [webDiscovery.primaryImageUrl] : []),
+    ...webDiscovery.galleryImages,
+  ].filter(Boolean);
+
+  const systemPrompt = `You are the Chief Archivist & Israeli Market Analyst at Maison Archive, powered by DeepSeek V4.1 Flash (1017).
+Analyze the product information, web image candidates, and Israeli market search snippets (Zap.co.il, KSP, Super-Pharm, Factory 54, Terminal X, etc.) and return a strict JSON object with these exact keys:
+- "title": Accurate, clean product name (string)
 - "brand": Brand or Maison name (string)
 - "category": Must be EXACTLY one of: "Fragrances", "Watches", "Sunglasses", "Wallets", "Shirts", "T-Shirts", "Men's Apparel", "Pants", "Jackets"
-- "price": Numeric price in USD (or detected currency). If unknown, estimate the realistic retail market price as a number > 0.
-- "originalPrice": Optional numeric original retail price if on sale, else null.
-- "currency": 3-letter currency code (default "USD")
-- "imageUrl": Best high-resolution product image URL from the candidates provided (or empty string if none)
-- "labels": Array of 5 to 6 evocative, specific sartorial & material labels (e.g., ["Full-Grain Calfskin", "1970s Milanese Cut", "Chronograph Dial", "Unstructured Shoulder", "Woody Amber Accord"])
-- "vibe": A concise 3-5 word vintage/editorial aesthetic vibe title (e.g., "1971 Riviera Grand Tourer", "Brera Espresso & Flannel")
-- "vibeDescription": 2 rich editorial sentences analyzing the craftsmanship, silhouette/notes, and aesthetic character of this piece.
+- "price": Numeric price in USD (estimate realistic USD retail price if not explicitly given)
+- "avgPriceIls": Numeric average retail price in Israel in ₪ (ILS / NIS). Use the Israeli search snippets / detected ₪ prices if available, or accurately estimate the Israeli market price in ILS (typically ~3.65–4.1x USD including VAT in Israel). Must be a positive integer.
+- "israelPriceNote": Concise Israeli market price summary (e.g., "Avg ₪590 in Israel (Zap / KSP: ₪550–₪650)")
+- "originalPrice": Optional numeric original USD price if on sale, else null
+- "currency": "USD"
+- "bestImageIndex": Integer index (0-based) into the provided Web Image Candidates array that best matches the official product photo
+- "labels": Array of 5 to 6 specific material, scent, or sartorial labels
+- "vibe": Concise 3-5 word aesthetic vibe
+- "vibeDescription": 2 sentences analyzing the piece
 - "colorPalette": Array of 3 objects with {"name": string, "hex": "#RRGGBB"}
 - "season": One of "Autumn / Winter", "Spring / Summer", or "All-Season"
 - "formality": One of "Casual", "Smart Casual", "Sartorial / Tailored", or "Evening / Nocturnal"
-- "pairingNotes": 1-2 sentences explaining how to style this piece with other categories (watches, fragrances, trousers, outerwear).
+- "pairingNotes": 1-2 sentences on how to style this piece
 - "priority": One of "grail", "high", or "standard"`;
 
-  const userText = `Analyze this product for the sartorial archive:
+  const userText = `Analyze this product and determine its best image and average price in Israel (₪ ILS):
 URL: ${s?.url || "Direct Upload"}
-Domain: ${s?.domain || "N/A"}
-Scraped Title: ${input.manualTitle || s?.title || "Unknown"}
-Scraped Brand: ${input.manualBrand || s?.brand || "Unknown"}
-Scraped Price: ${input.manualPrice ?? s?.price ?? "Estimate realistic retail price"} ${s?.currency || "USD"}
-Requested Category Hint: ${input.manualCategory || "Auto-detect"}
-Description: ${s?.description || input.manualNotes || "N/A"}
-Image Candidates: ${JSON.stringify(
-    [candidateImage, ...(s?.galleryImages || [])].filter(Boolean)
-  )}
-Page Text Excerpt: ${(s?.rawTextSnippet || "").slice(0, 3200)}
+Title Hint: ${input.manualTitle || s?.title || initialQuery || "Unknown"}
+Brand Hint: ${input.manualBrand || s?.brand || "Auto-detect"}
+User Price Hint (USD): ${input.manualPrice ?? s?.price ?? "Auto-estimate"}
+User Price Hint (ILS ₪): ${input.manualPriceIls ?? "Auto-detect from Israel snippets"}
+Category Hint: ${input.manualCategory || "Auto-detect"}
+Notes / Description: ${s?.description || input.manualNotes || "N/A"}
+
+Web Image Candidates (0-indexed):
+${JSON.stringify(
+  webDiscovery.imageCandidates.map((c, idx) => ({
+    index: idx,
+    title: c.title,
+    url: c.turl,
+  })),
+  null,
+  2
+)}
+
+Israeli Market Search Snippets (Zap / KSP / Super-Pharm / ₪ ILS):
+${JSON.stringify(webDiscovery.israelSnippets, null, 2)}
+Detected ₪ ILS Numbers in Snippets: ${JSON.stringify(webDiscovery.detectedIlsPrices)}
+
+Page Text Excerpt:
+${(s?.rawTextSnippet || "").slice(0, 2200)}
 
 Return valid JSON only.`;
 
-  const userContent: any =
-    candidateImage && candidateImage.startsWith("http")
-      ? [
-          { type: "text", text: userText },
-          { type: "image_url", image_url: { url: candidateImage } },
-        ]
-      : userText;
+  const parsed = await callDeepSeekJson<any>(
+    [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userText },
+    ],
+    "low"
+  ).catch(() => ({}));
 
-  try {
-    const parsed = await callDeepSeekJson<any>(
-      [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userContent },
-      ],
-      "low"
+  // If initial query was weak (e.g. URL had no title) and DeepSeek identified a better brand+title, do a quick image lookup for that exact brand+title!
+  let finalDiscovery = webDiscovery;
+  if (
+    allImageCandidates.length === 0 &&
+    (parsed.brand || parsed.title)
+  ) {
+    finalDiscovery = await discoverProductImageAndIsraelPrice(
+      `${parsed.brand || ""} ${parsed.title || ""}`.trim(),
+      parsed.category
     );
-
-    const category = normalizeCategory(
-      input.manualCategory || parsed.category || parsed.title || s?.title
-    );
-    const chosenImg =
-      input.manualImageUrl ||
-      (typeof parsed.imageUrl === "string" && parsed.imageUrl.startsWith("http")
-        ? parsed.imageUrl
-        : undefined) ||
-      s?.imageUrl ||
-      CATEGORY_FALLBACK_IMAGES[category];
-
-    return {
-      title:
-        input.manualTitle ||
-        parsed.title ||
-        s?.title ||
-        "Curated Sartorial Piece",
-      brand: input.manualBrand || parsed.brand || s?.brand || "Maison Archive",
-      category,
-      price:
-        Number(input.manualPrice ?? parsed.price ?? s?.price) > 0
-          ? Number(input.manualPrice ?? parsed.price ?? s?.price)
-          : 250,
-      originalPrice:
-        parsed.originalPrice && Number(parsed.originalPrice) > 0
-          ? Number(parsed.originalPrice)
-          : s?.originalPrice,
-      currency: parsed.currency || s?.currency || "USD",
-      imageUrl: chosenImg,
-      labels:
-        Array.isArray(parsed.labels) && parsed.labels.length > 0
-          ? parsed.labels.slice(0, 6).map(String)
-          : [
-              category,
-              "Archive Selection",
-              "Heritage Craft",
-              "Timeless Silhouette",
-              "Curated Piece",
-            ],
-      vibe: parsed.vibe || "1970s Continental Sartorial",
-      vibeDescription:
-        parsed.vibeDescription ||
-        s?.description ||
-        "Selected and catalogued by DeepSeek V4.1 Flash for its enduring material quality and versatile proportions.",
-      colorPalette:
-        Array.isArray(parsed.colorPalette) && parsed.colorPalette.length > 0
-          ? parsed.colorPalette.slice(0, 4)
-          : [
-              { name: "Archive Espresso", hex: "#2A1F18" },
-              { name: "Warm Parchment", hex: "#E8DEC8" },
-              { name: "Antique Brass", hex: "#B08A3A" },
-            ],
-      season: parsed.season || "All-Season",
-      formality: parsed.formality || "Smart Casual",
-      pairingNotes:
-        parsed.pairingNotes ||
-        "Pairs naturally with tailored wool trousers, fine-gauge knitwear, and woody-amber fragrances.",
-      priority:
-        parsed.priority === "grail" ||
-        parsed.priority === "high" ||
-        parsed.priority === "standard"
-          ? parsed.priority
-          : "high",
-    };
-  } catch {
-    // Graceful fallback if vision URL rejected by upstream provider: retry text-only
-    const parsed = await callDeepSeekJson<any>(
-      [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userText },
-      ],
-      "low"
-    );
-    const category = normalizeCategory(
-      input.manualCategory || parsed.category || parsed.title || s?.title
-    );
-    return {
-      title:
-        input.manualTitle ||
-        parsed.title ||
-        s?.title ||
-        "Curated Sartorial Piece",
-      brand: input.manualBrand || parsed.brand || s?.brand || "Maison Archive",
-      category,
-      price:
-        Number(input.manualPrice ?? parsed.price ?? s?.price) > 0
-          ? Number(input.manualPrice ?? parsed.price ?? s?.price)
-          : 250,
-      originalPrice:
-        parsed.originalPrice && Number(parsed.originalPrice) > 0
-          ? Number(parsed.originalPrice)
-          : undefined,
-      currency: parsed.currency || s?.currency || "USD",
-      imageUrl:
-        input.manualImageUrl ||
-        s?.imageUrl ||
-        CATEGORY_FALLBACK_IMAGES[category],
-      labels:
-        Array.isArray(parsed.labels) && parsed.labels.length > 0
-          ? parsed.labels.slice(0, 6).map(String)
-          : [category, "Archive Grade", "Quiet Luxury", "Timeless"],
-      vibe: parsed.vibe || "1974 Continental Archive",
-      vibeDescription:
-        parsed.vibeDescription ||
-        "Catalogued by DeepSeek V4.1 Flash with vintage sartorial provenance.",
-      colorPalette:
-        Array.isArray(parsed.colorPalette) && parsed.colorPalette.length > 0
-          ? parsed.colorPalette.slice(0, 4)
-          : [
-              { name: "Espresso", hex: "#2A1F18" },
-              { name: "Antique Gold", hex: "#B08A3A" },
-            ],
-      season: parsed.season || "All-Season",
-      formality: parsed.formality || "Smart Casual",
-      pairingNotes:
-        parsed.pairingNotes ||
-        "Harmonizes with tailored outerwear, dress watches, and leather accessories.",
-      priority: parsed.priority || "high",
-    };
   }
+
+  const category = normalizeCategory(
+    input.manualCategory || parsed.category || parsed.title || s?.title
+  );
+
+  // Pick the best image URL:
+  // 1. User's manual uploaded image
+  // 2. Scraped product image from page
+  // 3. DeepSeek's selected candidate from Bing Image search (rehosted onto KIE CDN!)
+  let chosenImageUrl = input.manualImageUrl || s?.imageUrl;
+
+  if (!chosenImageUrl && finalDiscovery.imageCandidates.length > 0) {
+    const idx =
+      typeof parsed.bestImageIndex === "number" &&
+      parsed.bestImageIndex >= 0 &&
+      parsed.bestImageIndex < finalDiscovery.imageCandidates.length
+        ? parsed.bestImageIndex
+        : 0;
+    const picked = finalDiscovery.imageCandidates[idx];
+    chosenImageUrl =
+      picked.rehostedUrl ||
+      (await rehostUrlOnKie(picked.turl || picked.murl).catch(
+        () => picked.turl || picked.murl
+      ));
+  }
+
+  if (!chosenImageUrl) {
+    chosenImageUrl =
+      finalDiscovery.primaryImageUrl ||
+      allImageCandidates[0] ||
+      `https://placehold.co/800x600/F5EFE2/171411?text=${encodeURIComponent(
+        `${input.manualBrand || parsed.brand || ""} ${input.manualTitle || parsed.title || category}`.trim()
+      )}`;
+  }
+
+  const gallery = Array.from(
+    new Set(
+      [
+        chosenImageUrl,
+        ...(s?.galleryImages || []),
+        ...finalDiscovery.galleryImages,
+      ].filter(Boolean)
+    )
+  ).slice(0, 8);
+
+  const detectedMedianIls =
+    finalDiscovery.detectedIlsPrices.length > 0
+      ? Math.round(
+          finalDiscovery.detectedIlsPrices.reduce((a, b) => a + b, 0) /
+            finalDiscovery.detectedIlsPrices.length
+        )
+      : undefined;
+
+  const usdPrice =
+    Number(input.manualPrice ?? parsed.price ?? s?.price) > 0
+      ? Math.round(Number(input.manualPrice ?? parsed.price ?? s?.price))
+      : detectedMedianIls
+        ? Math.round(detectedMedianIls / 3.75)
+        : 180;
+
+  const avgPriceIls =
+    Number(input.manualPriceIls ?? parsed.avgPriceIls ?? detectedMedianIls) > 0
+      ? Math.round(
+          Number(input.manualPriceIls ?? parsed.avgPriceIls ?? detectedMedianIls)
+        )
+      : Math.round(usdPrice * 3.8);
+
+  const israelPriceNote =
+    parsed.israelPriceNote ||
+    (finalDiscovery.detectedIlsPrices.length > 0
+      ? `Avg ₪${avgPriceIls.toLocaleString()} in Israel (Range: ₪${Math.min(
+          ...finalDiscovery.detectedIlsPrices
+        )}–₪${Math.max(...finalDiscovery.detectedIlsPrices)})`
+      : `Est. ₪${avgPriceIls.toLocaleString()} in Israel`);
+
+  return {
+    title:
+      input.manualTitle ||
+      parsed.title ||
+      s?.title ||
+      "Curated Sartorial Piece",
+    brand: input.manualBrand || parsed.brand || s?.brand || "Maison Archive",
+    category,
+    price: usdPrice,
+    avgPriceIls,
+    israelPriceNote,
+    originalPrice:
+      parsed.originalPrice && Number(parsed.originalPrice) > 0
+        ? Number(parsed.originalPrice)
+        : s?.originalPrice,
+    currency: parsed.currency || s?.currency || "USD",
+    imageUrl: chosenImageUrl,
+    galleryImages: gallery,
+    labels:
+      Array.isArray(parsed.labels) && parsed.labels.length > 0
+        ? parsed.labels.slice(0, 6).map(String)
+        : [category, "Archive Selection", "Curated Piece"],
+    vibe: parsed.vibe || "Contemporary Classic",
+    vibeDescription:
+      parsed.vibeDescription ||
+      s?.description ||
+      "Catalogued and analyzed by DeepSeek V4.1 Flash.",
+    colorPalette:
+      Array.isArray(parsed.colorPalette) && parsed.colorPalette.length > 0
+        ? parsed.colorPalette.slice(0, 4)
+        : [
+            { name: "Espresso", hex: "#2A1F18" },
+            { name: "Warm Parchment", hex: "#E8DEC8" },
+            { name: "Antique Brass", hex: "#B08A3A" },
+          ],
+    season: parsed.season || "All-Season",
+    formality: parsed.formality || "Smart Casual",
+    pairingNotes:
+      parsed.pairingNotes ||
+      "Pairs cleanly with tailored trousers, knitwear, and signature fragrances.",
+    priority:
+      parsed.priority === "grail" ||
+      parsed.priority === "high" ||
+      parsed.priority === "standard"
+        ? parsed.priority
+        : "high",
+  };
+}
+
+export interface RefinedSearchData {
+  bestImageIndex?: number;
+  avgPriceIls?: number;
+  israelPriceNote?: string;
+}
+
+/**
+ * Re-analyzes an existing piece against fresh web image candidates and Israeli market snippets,
+ * picks the best matching image and refines the ₪ ILS average price.
+ */
+export async function updatePieceSearchDataWithDeepSeek(input: {
+  piece: { title: string; brand: string; category: string };
+  imageCandidates: Array<{ turl: string; murl: string; title: string; rehostedUrl?: string }>;
+  israelSnippets: string[];
+  detectedIlsPrices: number[];
+  currentPriceUsd?: number;
+}): Promise<RefinedSearchData> {
+  const systemPrompt = `You are the Chief Archivist & Israeli Market Analyst at Maison Archive (DeepSeek V4.1 Flash 1017).
+Given a catalogued piece, fresh web image candidates, and Israeli market search snippets (Zap.co.il, KSP, Super-Pharm, etc.), return strict JSON with:
+- "bestImageIndex": 0-based index of the candidate that best matches the official product photo (or -1 if none match)
+- "avgPriceIls": best estimate of the average retail price in Israel in ₪ ILS (positive integer). Prefer detected ₪ numbers; otherwise estimate from USD incl. Israeli VAT.
+- "israelPriceNote": one concise sentence, e.g. "Avg ₪590 in Israel (Zap / KSP: ₪550–₪650)"`;
+
+  const userText = `Piece: ${input.piece.brand} ${input.piece.title} (${input.piece.category})
+Current USD Price: ${input.currentPriceUsd ?? "unknown"}
+
+Web Image Candidates (0-indexed):
+${JSON.stringify(
+  input.imageCandidates.map((c, idx) => ({
+    index: idx,
+    title: c.title,
+    url: c.rehostedUrl || c.turl,
+  })),
+  null,
+  2
+)}
+
+Israeli Market Snippets:
+${JSON.stringify(input.israelSnippets.slice(0, 8), null, 2)}
+Detected ₪ ILS Numbers: ${JSON.stringify(input.detectedIlsPrices)}
+
+Return valid JSON only.`;
+
+  return callDeepSeekJson<RefinedSearchData>(
+    [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userText },
+    ],
+    "low"
+  );
 }
 
 export interface CuratedOutfitPlan {
@@ -387,7 +482,7 @@ export interface CuratedOutfitPlan {
 }
 
 /**
- * Uses DeepSeek V4.1 Flash to combine pieces from Wishlist and/or Current Wardrobe into a
+ * Uses DeepSeek V4.1 Flash to combine pieces from Buylist and/or Current Wardrobe into a
  * cohesive Daily Outfit and writes the exact no-human flat-lay prompt for KIE Sunburst 2.5.
  */
 export async function curateDailyOutfitWithDeepSeek(input: {
@@ -431,24 +526,23 @@ export async function curateDailyOutfitWithDeepSeek(input: {
     price: p.price,
   }));
 
-  const systemPrompt = `You are the Master Stylist & Creative Director at Maison Archive (1974 Sartorial Atelier), powered by DeepSeek V4.1 Flash (1017).
-Your task is to compose a complete, unforgettable daily menswear outfit from the user's catalog (combining garments, outerwear, pants, watch, sunglasses, wallet, and fragrance) AND write a hyper-detailed image generation prompt for KIE.AI GPT Image 2.5 Sunburst.
+  const systemPrompt = `You are the Master Stylist & Creative Director at Maison Archive, powered by DeepSeek V4.1 Flash (1017).
+Compose a complete daily menswear outfit from the user's catalog and write a hyper-detailed image generation prompt for KIE.AI GPT Image 2.5 Sunburst.
 
 CRITICAL IMAGE REQUIREMENT:
-The "sunburstPrompt" MUST describe an overhead editorial luxury menswear flat-lay (knolling still-life) composition of ONLY the garments and accessories arranged neatly on a warm vintage surface (cream linen, travertine stone, or dark walnut wood).
+The "sunburstPrompt" MUST describe an overhead editorial luxury menswear flat-lay (knolling still-life) composition of ONLY the garments and accessories arranged neatly on a warm vintage surface.
 It MUST explicitly state: "Overhead editorial luxury menswear flat-lay photography, knolling composition. NO HUMAN, NO PERSON, NO MODEL, NO MANNEQUIN, NO BODY PARTS — garments and accessories only."
-Describe each chosen piece's exact visual appearance (fabric texture, color, collar, watch dial/strap, sunglasses frame, wallet leather, perfume bottle shape/glass color) so all selected pieces appear together in ONE cohesive overhead photograph.
 
 Return a strict JSON object with these exact keys:
-- "title": Evocative editorial title (e.g., "The Milanese Espresso & Suede Rotation")
-- "subtitle": Concise subtitle describing the mix (e.g., "Wishlist Grails + Owned Wardrobe • Autumn Tailoring")
-- "occasion": Specific occasion (use user's if provided, or craft a fitting one)
-- "weather": Ideal weather / temperature note
-- "selectedPieceIds": Array of 3 to 7 piece "id" strings from the provided catalog (MUST include the anchor piece ID if one was specified!)
-- "editorialNote": 2-3 sentences explaining why DeepSeek V4.1 Flash paired these specific pieces, silhouettes, and textures together.
-- "scentPairingNote": 1-2 sentences on how the fragrance (or olfactory mood) complements the fabrics and leather.
-- "stylistVerdict": Score and one-line verdict (e.g., "9.7 / 10 Sartorial Cohesion — Effortless balance of structured wool and supple suede.")
-- "vibeTags": Array of 4 short aesthetic tags
+- "title": Editorial title
+- "subtitle": Concise subtitle
+- "occasion": Specific occasion
+- "weather": Weather note
+- "selectedPieceIds": Array of 3 to 7 piece "id" strings from the catalog (MUST include the anchor piece ID if specified)
+- "editorialNote": 2-3 sentences explaining why these pieces harmonize
+- "scentPairingNote": 1-2 sentences on how the fragrance complements the outfit
+- "stylistVerdict": Score and one-line verdict
+- "vibeTags": Array of 4 short tags
 - "colorStory": Array of 4 objects with {"name": string, "hex": "#RRGGBB"}
 - "sunburstPrompt": Detailed 90-140 word prompt for KIE GPT Image 2.5 Sunburst flat-lay generation (strictly NO HUMAN, overhead knolling flat-lay of all selected pieces in one image).`;
 
@@ -456,16 +550,11 @@ Return a strict JSON object with these exact keys:
 Mode: ${input.mode}
 ${
   anchorPiece
-    ? `MANDATORY ANCHOR PIECE (user clicked this piece to build an outfit around it): ID="${anchorPiece.id}", Title="${anchorPiece.brand} ${anchorPiece.title}" (${anchorPiece.category}, Vibe: ${anchorPiece.vibe})`
-    : "No single anchor piece forced — curate the most harmonious complete daily look."
+    ? `MANDATORY ANCHOR PIECE: ID="${anchorPiece.id}", Title="${anchorPiece.brand} ${anchorPiece.title}" (${anchorPiece.category})`
+    : "Curate the most harmonious complete daily look."
 }
-${
-  input.selectedPieceIds?.length
-    ? `User pre-selected piece IDs: ${JSON.stringify(input.selectedPieceIds)}`
-    : ""
-}
-Requested Occasion: ${input.occasion || "Curator's Choice — Continental Day-to-Evening"}
-Requested Weather: ${input.weather || "16°C Crisp Autumn"}
+Requested Occasion: ${input.occasion || "Daily Rotation"}
+Requested Weather: ${input.weather || "Mild / All-Season"}
 
 Available Catalog Pieces:
 ${JSON.stringify(catalogSummary, null, 2)}
@@ -503,45 +592,38 @@ Return valid JSON only.`;
   const guaranteedPrompt =
     result.sunburstPrompt && result.sunburstPrompt.length > 40
       ? `${result.sunburstPrompt} Overhead flat-lay knolling still life, NO HUMAN, NO MANNEQUIN, NO PERSON, all pieces arranged together in one single frame.`
-      : `Overhead editorial luxury menswear flat-lay photography, knolling style on warm aged cream linen and dark walnut wood surface. NO HUMAN, NO PERSON, NO MANNEQUIN, garment and accessory pieces only. Featuring together in one image: ${pieceDescriptions}. Warm natural studio lighting, 1970s Milanese archive catalog aesthetic, ultra-detailed textures, 8k still life.`;
+      : `Overhead editorial luxury menswear flat-lay photography, knolling style on warm aged cream linen and dark walnut wood surface. NO HUMAN, NO PERSON, NO MANNEQUIN, garment and accessory pieces only. Featuring together in one image: ${pieceDescriptions}. Warm natural studio lighting, ultra-detailed textures, 8k still life.`;
 
   return {
-    title: result.title || "The Continental Archive Rotation",
-    subtitle:
-      result.subtitle ||
-      "DeepSeek V4.1 Flash Curated Ensemble • Sunburst 2.5 Plate",
-    occasion: result.occasion || input.occasion || "Continental Day-to-Evening",
-    weather: result.weather || input.weather || "16°C Crisp Autumn",
+    title: result.title || "Daily Archive Rotation",
+    subtitle: result.subtitle || "DeepSeek V4.1 Flash • Sunburst 2.5 Plate",
+    occasion: result.occasion || input.occasion || "Daily Rotation",
+    weather: result.weather || input.weather || "All-Season",
     selectedPieceIds: chosenIds,
     editorialNote:
       result.editorialNote ||
-      `Curated by DeepSeek V4.1 Flash combining ${chosenPieces.map((p) => p.brand).join(", ")} into a cohesive tonal study.`,
+      `Curated by DeepSeek V4.1 Flash combining ${chosenPieces.map((p) => p.brand).join(", ")}.`,
     scentPairingNote:
       result.scentPairingNote ||
-      "Warm woody, leather, and amber accords bind the tactile wool and calfskin textures together.",
+      "Balanced textures and olfactory notes across the selected pieces.",
     stylistVerdict:
-      result.stylistVerdict ||
-      "9.7 / 10 Sartorial Harmony — Timeless proportion and material interplay.",
+      result.stylistVerdict || "9.7 / 10 Sartorial Harmony",
     vibeTags:
       Array.isArray(result.vibeTags) && result.vibeTags.length > 0
         ? result.vibeTags.slice(0, 5)
-        : ["1974 Archive", "Quiet Luxury", "Flat-Lay Study", "Sunburst 2.5"],
+        : ["Flat-Lay Study", "Sunburst 2.5"],
     colorStory:
       Array.isArray(result.colorStory) && result.colorStory.length > 0
         ? result.colorStory.slice(0, 5)
         : [
-            { name: "Espresso Suede", hex: "#3A281E" },
+            { name: "Espresso", hex: "#3A281E" },
             { name: "Warm Ecru", hex: "#F2EAD9" },
-            { name: "Charcoal Wool", hex: "#2B2C2E" },
-            { name: "Burnished Brass", hex: "#B08A3A" },
+            { name: "Charcoal", hex: "#2B2C2E" },
           ],
     sunburstPrompt: guaranteedPrompt,
   };
 }
 
-/**
- * Generates an executive daily report via DeepSeek V4.1 Flash after checking wishlist prices.
- */
 export async function generateDailyBriefWithDeepSeek(
   updates: PriceItemUpdate[],
   totalWishlistValue: number,
@@ -556,11 +638,11 @@ export async function generateDailyBriefWithDeepSeek(
         {
           role: "system",
           content:
-            "You are GrokBot's Daily Sartorial Market Analyst powered by DeepSeek V4.1 Flash (1017). Summarize today's wishlist price check into JSON with keys 'summaryHeadline' (1 punchy headline) and 'executiveBrief' (2-3 crisp sentences highlighting specific price drops, stock status, and buying recommendations).",
+            "You are GrokBot's Daily Market Analyst powered by DeepSeek V4.1 Flash (1017). Summarize today's buylist price check (including Israel ₪ ILS prices and USD prices) into JSON with keys 'summaryHeadline' and 'executiveBrief'.",
         },
         {
           role: "user",
-          content: `Total Wishlist Value: $${totalWishlistValue}\nTotal Savings vs Original Retail: $${totalSavingsAvailable}\nItem Updates:\n${JSON.stringify(updates, null, 2)}\nReturn JSON only.`,
+          content: `Total Buylist Value: $${totalWishlistValue}\nTotal Savings: $${totalSavingsAvailable}\nItem Updates:\n${JSON.stringify(updates, null, 2)}\nReturn JSON only.`,
         },
       ],
       "low"
@@ -568,16 +650,16 @@ export async function generateDailyBriefWithDeepSeek(
     return {
       summaryHeadline:
         res.summaryHeadline ||
-        `${updates.filter((u) => u.status === "drop").length} Buylist Price Drops Active — $${totalSavingsAvailable} Total Archive Savings`,
+        `${updates.filter((u) => u.status === "drop").length} Buylist Price Drops Active`,
       executiveBrief:
         res.executiveBrief ||
-        `GrokBot audited ${updates.length} buylist pieces via DeepSeek V4.1 Flash. Total portfolio stands at $${totalWishlistValue.toLocaleString()}.`,
+        `Audited ${updates.length} buylist pieces via DeepSeek V4.1 Flash.`,
     };
   } catch {
     const drops = updates.filter((u) => u.status === "drop").length;
     return {
-      summaryHeadline: `${drops} Buylist Price Reductions Verified — $${totalSavingsAvailable} Available Savings`,
-      executiveBrief: `Daily Railway sweep audited ${updates.length} pieces across your buylist. ${drops} pieces are trading below initial retail baseline.`,
+      summaryHeadline: `${drops} Buylist Price Reductions Verified`,
+      executiveBrief: `Audited ${updates.length} pieces across your buylist.`,
     };
   }
 }

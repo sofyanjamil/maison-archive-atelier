@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     const railwayRes = await proxyToRailwayIfConfigured("/api/pieces/upload", {
       method: "POST",
       body: JSON.stringify(body),
-    });
+    }, 52000);
     if (railwayRes?.piece) {
       return NextResponse.json(railwayRes, { status: 201 });
     }
@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
       brand: body.brand,
       category: body.category,
       price: body.price ? Number(body.price) : undefined,
+      priceIls: body.avgPriceIls ? Number(body.avgPriceIls) : undefined,
       targetPrice: body.targetPrice ? Number(body.targetPrice) : undefined,
       currency: body.currency || "USD",
       imageBase64: body.imageBase64,

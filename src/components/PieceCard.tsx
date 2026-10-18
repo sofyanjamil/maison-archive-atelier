@@ -60,8 +60,15 @@ export default function PieceCard({
           </div>
         )}
 
-        <div className="absolute bottom-2.5 right-2.5 bg-parchment-50/95 px-2.5 py-0.5 rounded-sm border border-espresso-900/15 text-xs font-mono font-semibold text-espresso-950">
-          ${piece.price.toLocaleString()}
+        <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5">
+          {piece.avgPriceIls ? (
+            <span className="bg-espresso-900/90 px-2.5 py-0.5 rounded-sm border border-brass-400/30 text-xs font-mono font-semibold text-brass-300">
+              ₪{piece.avgPriceIls.toLocaleString()}
+            </span>
+          ) : null}
+          <span className="bg-parchment-50/95 px-2.5 py-0.5 rounded-sm border border-espresso-900/15 text-xs font-mono font-semibold text-espresso-950">
+            ${piece.price.toLocaleString()}
+          </span>
         </div>
       </div>
 

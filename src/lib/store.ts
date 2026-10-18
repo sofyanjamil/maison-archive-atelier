@@ -137,6 +137,8 @@ export async function ingestPieceFromLink(input: {
     brand: analyzed.brand,
     category: analyzed.category,
     price: analyzed.price,
+    avgPriceIls: analyzed.avgPriceIls,
+    israelPriceNote: analyzed.israelPriceNote,
     originalPrice: analyzed.originalPrice,
     targetPrice:
       input.targetPrice ?? Math.round(analyzed.price * 0.9),
@@ -144,7 +146,7 @@ export async function ingestPieceFromLink(input: {
     sourceUrl: scraped.url,
     storeName: scraped.domain,
     imageUrl: analyzed.imageUrl,
-    galleryImages: scraped.galleryImages,
+    galleryImages: analyzed.galleryImages,
     labels: analyzed.labels,
     vibe: analyzed.vibe,
     vibeDescription: analyzed.vibeDescription,
@@ -211,6 +213,7 @@ export async function ingestPieceFromUpload(input: {
   brand?: string;
   category?: string;
   price?: number;
+  priceIls?: number;
   targetPrice?: number;
   currency?: string;
   imageBase64?: string;
@@ -238,6 +241,7 @@ export async function ingestPieceFromUpload(input: {
     manualTitle: input.title,
     manualBrand: input.brand,
     manualPrice: input.price,
+    manualPriceIls: input.priceIls,
     manualCategory: input.category,
     manualImageUrl:
       uploadedImageUrl && uploadedImageUrl.startsWith("http")
@@ -257,12 +261,15 @@ export async function ingestPieceFromUpload(input: {
       ? normalizeCategory(input.category)
       : analyzed.category,
     price: input.price ?? analyzed.price,
+    avgPriceIls: analyzed.avgPriceIls,
+    israelPriceNote: analyzed.israelPriceNote,
     targetPrice: input.targetPrice,
     currency: input.currency || analyzed.currency || "USD",
     sourceUrl: input.sourceUrl,
     storeName:
       input.collection === "wardrobe" ? "Owned Wardrobe" : "Direct Entry",
     imageUrl: uploadedImageUrl || analyzed.imageUrl,
+    galleryImages: analyzed.galleryImages,
     labels: analyzed.labels,
     vibe: analyzed.vibe,
     vibeDescription: analyzed.vibeDescription,

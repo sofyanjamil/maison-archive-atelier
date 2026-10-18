@@ -15,8 +15,12 @@ import {
   updateArchivePiece,
 } from "../src/lib/store";
 import { handleMcpJsonRpc, MCP_TOOLS } from "../src/lib/mcp-handler";
-import { getKieCreditBalance } from "../src/lib/kie";
-import { getDeepSeekModel } from "../src/lib/deepseek";
+import { getKieCreditBalance, uploadBase64ToKie } from "../src/lib/kie";
+import {
+  getDeepSeekModel,
+  updatePieceSearchDataWithDeepSeek,
+} from "../src/lib/deepseek";
+import { discoverProductImageAndIsraelPrice } from "../src/lib/product-search";
 
 const app = new Hono();
 
@@ -142,6 +146,7 @@ app.post("/api/pieces/upload", async (c) => {
       brand: body.brand,
       category: body.category,
       price: body.price ? Number(body.price) : undefined,
+      priceIls: body.avgPriceIls ? Number(body.avgPriceIls) : undefined,
       targetPrice: body.targetPrice ? Number(body.targetPrice) : undefined,
       currency: body.currency || "USD",
       imageBase64: body.imageBase64,
@@ -173,6 +178,89 @@ app.delete("/api/pieces/:id", (c) => {
   const ok = deleteArchivePiece(id);
   if (!ok) return c.json({ error: "Piece not found" }, 404);
   return c.json({ success: true });
+});
+
+// Live Web Image & Israel Market Price Re-Discovery
+app.post("/api/pieces/:id/rediscover", async (c) => {
+  try {
+    const id = c.req.param("id");
+    const state = loadLocalLedger();
+    const piece = state.pieces.find((p) => p.id === id);
+    if (!piece) return c.json({ error: "Piece not found" }, 404);
+
+    const query = `${piece.brand} ${piece.title}`.trim();
+    const discovery = await discoverProductImageAndIsraelPrice(query, piece.category);
+    const refined = await updatePieceSearchDataWithDeepSeek({
+      piece: { title: piece.title, brand: piece.brand, category: piece.category },
+      imageCandidates: discovery.imageCandidates,
+      israelSnippets: discovery.israelSnippets,
+      detectedIlsPrices: discovery.detectedIlsPrices,
+      currentPriceUsd: piece.price,
+    }).catch(() => null);
+
+    const patch: Record<string, any> = {
+      galleryImages:
+        discovery.galleryImages.length > 0
+          ? Array.from(
+              new Set([...(discovery.galleryImages || []), ...(piece.galleryImages || [])])
+            ).slice(0, 8)
+          : piece.galleryImages,
+    };
+
+    if (discovery.imageCandidates.length > 0) {
+      const idx =
+        refined?.bestImageIndex != null &&
+        refined.bestImageIndex >= 0 &&
+        refined.bestImageIndex < discovery.imageCandidates.length
+          ? refined.bestImageIndex
+          : 0;
+      const picked = discovery.imageCandidates[idx];
+      patch.imageUrl = picked.rehostedUrl || picked.turl || picked.murl;
+    }
+
+    if (refined?.avgPriceIls && refined.avgPriceIls > 0) {
+      patch.avgPriceIls = Math.round(refined.avgPriceIls);
+    } else if (discovery.detectedIlsPrices.length > 0) {
+      patch.avgPriceIls = Math.round(
+        discovery.detectedIlsPrices.reduce((a, b) => a + b, 0) /
+          discovery.detectedIlsPrices.length
+      );
+    }
+
+    if (refined?.israelPriceNote) {
+      patch.israelPriceNote = refined.israelPriceNote;
+    } else if (patch.avgPriceIls) {
+      patch.israelPriceNote = `Avg ₪${patch.avgPriceIls.toLocaleString()} in Israel`;
+    }
+
+    const updated = updateArchivePiece(id, patch);
+    return c.json({
+      success: true,
+      piece: updated,
+      foundImages: discovery.galleryImages,
+      israelSnippets: discovery.israelSnippets,
+      detectedIlsPrices: discovery.detectedIlsPrices,
+    });
+  } catch (err: any) {
+    return c.json({ error: err?.message || "Re-discovery failed" }, 500);
+  }
+});
+
+// Direct image upload to KIE CDN
+app.post("/api/upload-image", async (c) => {
+  try {
+    const body = await c.req.json();
+    if (!body?.imageBase64?.startsWith?.("data:")) {
+      return c.json({ error: "imageBase64 data URL is required" }, 400);
+    }
+    const url = await uploadBase64ToKie(
+      body.imageBase64,
+      `archive-piece-${Date.now()}.png`
+    );
+    return c.json({ url });
+  } catch (err: any) {
+    return c.json({ error: err?.message || "Image upload failed" }, 500);
+  }
 });
 
 // Outfits & Sunburst 2.5 Generation

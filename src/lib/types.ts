@@ -22,6 +22,7 @@ export interface ColorSwatch {
 export interface PriceSnapshot {
   date: string;
   price: number;
+  priceIls?: number;
   currency: string;
   note?: string;
 }
@@ -34,6 +35,8 @@ export interface SartorialPiece {
   brand: string;
   category: SartorialCategory;
   price: number;
+  avgPriceIls?: number;
+  israelPriceNote?: string;
   originalPrice?: number;
   targetPrice?: number;
   currency: string;
@@ -98,6 +101,7 @@ export interface PriceItemUpdate {
   category: SartorialCategory;
   previousPrice: number;
   currentPrice: number;
+  avgPriceIls?: number;
   changePct: number;
   status: "drop" | "increase" | "stable";
   inStock: boolean;
