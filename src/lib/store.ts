@@ -349,6 +349,18 @@ export function deleteArchivePiece(id: string): boolean {
   return false;
 }
 
+export function resetArchiveLedger(): ArchiveLedgerState {
+  const empty: ArchiveLedgerState = {
+    pieces: [],
+    outfits: [],
+    reports: [],
+    events: [],
+    lastDailyCheckAt: undefined,
+  };
+  saveLocalLedger(empty);
+  return empty;
+}
+
 /**
  * Generates a Daily Outfit by combining pieces with DeepSeek V4.1 Flash and launching
  * a KIE.AI GPT Image 2.5 Sunburst flat-lay task (no-human overhead composition).

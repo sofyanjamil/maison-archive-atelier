@@ -11,6 +11,7 @@ import {
   ingestPieceFromLink,
   ingestPieceFromUpload,
   loadLocalLedger,
+  resetArchiveLedger,
   updateArchivePiece,
 } from "../src/lib/store";
 import { handleMcpJsonRpc, MCP_TOOLS } from "../src/lib/mcp-handler";
@@ -87,6 +88,11 @@ app.get("/api/ledger", async (c) => {
       serviceHost: "railway",
     },
   });
+});
+
+app.delete("/api/ledger", (c) => {
+  const empty = resetArchiveLedger();
+  return c.json({ ok: true, ...empty });
 });
 
 // Pieces CRUD & AI Link Extraction

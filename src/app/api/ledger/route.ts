@@ -1,10 +1,22 @@
 import { NextResponse } from "next/server";
-import { checkAndSyncOutfitStatus, loadLocalLedger } from "@/lib/store";
+import {
+  checkAndSyncOutfitStatus,
+  loadLocalLedger,
+  resetArchiveLedger,
+} from "@/lib/store";
 import { getKieCreditBalance } from "@/lib/kie";
 import { getDeepSeekModel } from "@/lib/deepseek";
 import { getRailwayBaseUrl, proxyToRailwayIfConfigured } from "@/lib/railway-proxy";
 
 export const dynamic = "force-dynamic";
+
+export async function DELETE() {
+  const railwayRes = await proxyToRailwayIfConfigured("/api/ledger", {
+    method: "DELETE",
+  });
+  const empty = resetArchiveLedger();
+  return NextResponse.json(railwayRes || { ok: true, ...empty });
+}
 
 export async function GET() {
   const railwayData = await proxyToRailwayIfConfigured("/api/ledger");

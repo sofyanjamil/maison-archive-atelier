@@ -1,21 +1,45 @@
 import {
   appendEvent,
   checkAndSyncOutfitStatus,
+  deleteArchivePiece,
   executeDailyPriceCheck,
   generateDailyOutfit,
   handleGrokBotMessage,
   ingestPieceFromLink,
   ingestPieceFromUpload,
   loadLocalLedger,
+  resetArchiveLedger,
   saveLocalLedger,
   updateArchivePiece,
 } from "./store";
 
+export const MCP_APP_RESOURCE_URI = "ui://maison-archive/app.html";
+
 export const MCP_TOOLS = [
+  {
+    name: "archive_open_app",
+    description:
+      "Open the interactive Maison Archive web app inside GrokBot (Wishlist, Wardrobe, Daily Outfits & Price Reports).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        tab: {
+          type: "string",
+          enum: ["wishlist", "wardrobe", "outfits", "grokbot"],
+          description: "Initial tab to display",
+        },
+      },
+    },
+    _meta: {
+      ui: {
+        resourceUri: MCP_APP_RESOURCE_URI,
+      },
+    },
+  },
   {
     name: "archive_list_pieces",
     description:
-      "List pieces in Maison Archive (Wishlist or Current Wardrobe). Filter by collection ('wishlist' | 'wardrobe') or category ('Fragrances', 'Watches', 'Sunglasses', 'Wallets', 'Shirts', 'T-Shirts', \"Men's Apparel\", 'Pants', 'Jackets').",
+      "List pieces in Maison Archive (Wishlist or Current Wardrobe). Filter by collection ('wishlist' | 'wardrobe' | 'all') or category ('Fragrances', 'Watches', 'Sunglasses', 'Wallets', 'Shirts', 'T-Shirts', \"Men's Apparel\", 'Pants', 'Jackets').",
     inputSchema: {
       type: "object",
       properties: {
@@ -34,7 +58,7 @@ export const MCP_TOOLS = [
   {
     name: "archive_upload_link",
     description:
-      "Upload a product link from GrokBot into the Wishlist or Current Wardrobe. Automatically scrapes the product image and price, and runs DeepSeek V4.1 Flash (1017) to assign sartorial labels, vibe, and pairing notes.",
+      "Upload a product link from GrokBot into the Wishlist or Current Wardrobe. Scrapes the product image and price, and runs DeepSeek V4.1 Flash (1017) to assign labels, vibe, and pairing notes.",
     inputSchema: {
       type: "object",
       properties: {
@@ -97,7 +121,7 @@ export const MCP_TOOLS = [
   {
     name: "archive_run_daily_price_check",
     description:
-      "Run a live daily price & availability check across all wishlist items and generate a DeepSeek V4.1 Flash Daily Sartorial Market Report with price drops and buy alerts.",
+      "Run a live daily price & availability check across all wishlist items and generate a DeepSeek V4.1 Flash Daily Price Report.",
     inputSchema: {
       type: "object",
       properties: {},
@@ -161,7 +185,7 @@ export const MCP_TOOLS = [
   {
     name: "archive_move_or_update_piece",
     description:
-      "Move a piece from Wishlist to Current Wardrobe (e.g., when purchased) or update its price / targetPrice.",
+      "Move a piece between Wishlist and Current Wardrobe or update its price / targetPrice.",
     inputSchema: {
       type: "object",
       properties: {
@@ -172,6 +196,17 @@ export const MCP_TOOLS = [
         },
         price: { type: "number" },
         targetPrice: { type: "number" },
+      },
+      required: ["pieceId"],
+    },
+  },
+  {
+    name: "archive_delete_piece",
+    description: "Delete a piece from the Wishlist or Wardrobe by its ID.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        pieceId: { type: "string", description: "ID of the piece to delete" },
       },
       required: ["pieceId"],
     },
@@ -206,7 +241,7 @@ export async function handleMcpJsonRpc(body: any): Promise<any> {
         },
         serverInfo: {
           name: "maison-archive-grokbot-mcp",
-          version: "1.0.0",
+          version: "1.1.0",
         },
       },
     };
@@ -233,8 +268,15 @@ export async function handleMcpJsonRpc(body: any): Promise<any> {
       result: {
         resources: [
           {
+            uri: MCP_APP_RESOURCE_URI,
+            name: "Maison Archive Interactive App",
+            mimeType: "text/html;profile=mcp-app",
+            description:
+              "Interactive Maison Archive web application embedded inside GrokBot.",
+          },
+          {
             uri: "archive://ledger/summary",
-            name: "Maison Archive Wishlist & Wardrobe Summary",
+            name: "Maison Archive Ledger JSON",
             mimeType: "application/json",
             description:
               "Live snapshot of wishlist pieces, current wardrobe, daily price reports, and Sunburst 2.5 outfits.",
@@ -245,6 +287,39 @@ export async function handleMcpJsonRpc(body: any): Promise<any> {
   }
 
   if (method === "resources/read") {
+    const uri = params?.uri || "archive://ledger/summary";
+    if (uri === MCP_APP_RESOURCE_URI) {
+      const appUrl =
+        process.env.WEB_APP_URL || "https://maison-archive-atelier.vercel.app";
+      const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #FAF7F0; overflow: hidden; }
+  iframe { width: 100%; height: 100vh; border: 0; display: block; }
+</style>
+</head>
+<body>
+  <iframe src="${appUrl}?embed=grokbot" allow="clipboard-read; clipboard-write" title="Maison Archive"></iframe>
+</body>
+</html>`;
+      return {
+        jsonrpc: "2.0",
+        id,
+        result: {
+          contents: [
+            {
+              uri: MCP_APP_RESOURCE_URI,
+              mimeType: "text/html;profile=mcp-app",
+              text: html,
+            },
+          ],
+        },
+      };
+    }
+
     const state = loadLocalLedger();
     return {
       jsonrpc: "2.0",
@@ -252,7 +327,7 @@ export async function handleMcpJsonRpc(body: any): Promise<any> {
       result: {
         contents: [
           {
-            uri: params?.uri || "archive://ledger/summary",
+            uri,
             mimeType: "application/json",
             text: JSON.stringify(state, null, 2),
           },
@@ -270,6 +345,16 @@ export async function handleMcpJsonRpc(body: any): Promise<any> {
       let output: any;
 
       switch (toolName) {
+        case "archive_open_app": {
+          output = {
+            appUrl: "https://maison-archive-atelier.vercel.app",
+            tab: args.tab || "wishlist",
+            wishlistCount: state.pieces.filter((p) => p.collection === "wishlist").length,
+            wardrobeCount: state.pieces.filter((p) => p.collection === "wardrobe").length,
+            outfitsCount: state.outfits.length,
+          };
+          break;
+        }
         case "archive_list_pieces": {
           let list = state.pieces;
           if (args.collection && args.collection !== "all") {
@@ -351,6 +436,16 @@ export async function handleMcpJsonRpc(body: any): Promise<any> {
           output = { success: Boolean(updated), piece: updated };
           break;
         }
+        case "archive_delete_piece": {
+          const deleted = deleteArchivePiece(args.pieceId);
+          output = { success: deleted };
+          break;
+        }
+        case "archive_clear_all": {
+          resetArchiveLedger();
+          output = { success: true };
+          break;
+        }
         case "archive_grokbot_ask": {
           output = await handleGrokBotMessage(args.message || "");
           break;
@@ -362,8 +457,8 @@ export async function handleMcpJsonRpc(body: any): Promise<any> {
       appendEvent(loadLocalLedger(), {
         type: "mcp_call",
         actor: "GrokBot",
-        title: `GrokBot MCP Tool: ${toolName}`,
-        detail: `Executed ${toolName} via Model Context Protocol.`,
+        title: `GrokBot: ${toolName}`,
+        detail: `Executed ${toolName}`,
       });
       saveLocalLedger(loadLocalLedger());
 
@@ -377,6 +472,15 @@ export async function handleMcpJsonRpc(body: any): Promise<any> {
               text: JSON.stringify(output, null, 2),
             },
           ],
+          ...(toolName === "archive_open_app"
+            ? {
+                _meta: {
+                  ui: {
+                    resourceUri: MCP_APP_RESOURCE_URI,
+                  },
+                },
+              }
+            : {}),
         },
       };
     } catch (err: any) {
