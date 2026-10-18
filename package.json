@@ -1,0 +1,38 @@
+{
+  "name": "maison-archive-atelier",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Maison Archive — Vintage Sartorial Wishlist, Wardrobe Ledger, DeepSeek V4.1 Flash Curator, KIE Sunburst 2.5 Flat-Lay Studio & GrokBot Railway Hub",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "start:railway": "tsx server/railway-server.ts",
+    "dev:railway": "tsx watch server/railway-server.ts",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.14.0",
+    "cheerio": "^1.0.0",
+    "clsx": "^2.1.1",
+    "gsap": "^3.12.7",
+    "hono": "^4.7.4",
+    "lucide-react": "^0.479.0",
+    "next": "15.2.3",
+    "node-cron": "^3.0.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwind-merge": "^3.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@types/node-cron": "^3.0.11",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^3.4.17",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}

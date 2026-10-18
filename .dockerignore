@@ -1,0 +1,8 @@
+node_modules
+.next
+.git
+.vercel
+.railway
+.env
+.env*.local
+npm-debug.log*
