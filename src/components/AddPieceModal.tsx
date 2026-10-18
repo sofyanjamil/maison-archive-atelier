@@ -6,7 +6,6 @@ import {
   X,
   Link2,
   Upload,
-  Bot,
   Sparkles,
   Loader2,
   CheckCircle2,
@@ -32,9 +31,7 @@ export default function AddPieceModal({
   onClose,
   onPieceAdded,
 }: AddPieceModalProps) {
-  const [activeTab, setActiveTab] = useState<"link" | "upload" | "grokbot">(
-    "link"
-  );
+  const [activeTab, setActiveTab] = useState<"link" | "upload">("link");
   const [collection, setCollection] =
     useState<CollectionType>(defaultCollection);
 
@@ -50,9 +47,6 @@ export default function AddPieceModal({
   const [price, setPrice] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [imageBase64, setImageBase64] = useState<string | undefined>(undefined);
-
-  // GrokBot quick ingest state
-  const [grokPrompt, setGrokPrompt] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -161,38 +155,6 @@ export default function AddPieceModal({
     }
   };
 
-  const handleGrokBotIngest = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!grokPrompt.trim()) return;
-    setError(null);
-    setIsSubmitting(true);
-
-    try {
-      const res = await fetch("/api/grokbot/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: grokPrompt.trim(),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "GrokBot command failed");
-      }
-      if (data.createdPiece) {
-        onPieceAdded(data.createdPiece);
-        onClose();
-        setGrokPrompt("");
-      } else {
-        setError(data.reply || "Processed by GrokBot.");
-      }
-    } catch (err: any) {
-      setError(err?.message || "GrokBot ingestion failed");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-espresso-950/70 backdrop-blur-sm p-4">
       <div
@@ -244,7 +206,7 @@ export default function AddPieceModal({
         </div>
 
         {/* Tabs */}
-        <div className="grid grid-cols-3 border-b border-espresso-900/15 bg-parchment-100/40">
+        <div className="grid grid-cols-2 border-b border-espresso-900/15 bg-parchment-100/40">
           <button
             type="button"
             onClick={() => {
@@ -258,7 +220,7 @@ export default function AddPieceModal({
             }`}
           >
             <Link2 className="w-3.5 h-3.5 text-brass-600" />
-            <span>Link</span>
+            <span>Paste Link</span>
           </button>
           <button
             type="button"
@@ -273,22 +235,7 @@ export default function AddPieceModal({
             }`}
           >
             <Upload className="w-3.5 h-3.5 text-brass-600" />
-            <span>Upload</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab("grokbot");
-              setError(null);
-            }}
-            className={`flex items-center justify-center gap-1.5 py-3 text-xs font-mono uppercase tracking-wider border-b-2 transition ${
-              activeTab === "grokbot"
-                ? "border-brass-600 bg-parchment-50 text-espresso-950 font-semibold"
-                : "border-transparent text-espresso-600"
-            }`}
-          >
-            <Bot className="w-3.5 h-3.5 text-brass-600" />
-            <span>GrokBot</span>
+            <span>Upload Photo / Details</span>
           </button>
         </div>
 
@@ -499,51 +446,6 @@ export default function AddPieceModal({
                     <>
                       <Sparkles className="w-3.5 h-3.5 text-brass-400" />
                       <span>Save Piece</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          )}
-
-          {activeTab === "grokbot" && (
-            <form onSubmit={handleGrokBotIngest} className="space-y-4">
-              <div>
-                <label className="block text-xs font-mono uppercase tracking-wider text-espresso-700 mb-1">
-                  Tell GrokBot what to add
-                </label>
-                <textarea
-                  rows={3}
-                  required
-                  value={grokPrompt}
-                  onChange={(e) => setGrokPrompt(e.target.value)}
-                  placeholder="Paste a link or describe the piece..."
-                  className="w-full px-3.5 py-2.5 bg-white border border-espresso-900/20 rounded-sm text-sm text-espresso-900 focus:outline-none focus:border-brass-600"
-                />
-              </div>
-
-              <div className="pt-2 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-4 py-2 text-xs font-mono uppercase text-espresso-600"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-espresso-900 hover:bg-espresso-800 text-parchment-50 text-xs font-mono uppercase tracking-wider rounded-sm transition disabled:opacity-60"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-brass-400" />
-                      <span>Sending...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Bot className="w-3.5 h-3.5 text-brass-400" />
-                      <span>Add via GrokBot</span>
                     </>
                   )}
                 </button>

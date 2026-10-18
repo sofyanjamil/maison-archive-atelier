@@ -9,7 +9,7 @@ import {
   Bookmark,
   Briefcase,
   Wand2,
-  Bot,
+  Activity,
 } from "lucide-react";
 import {
   CollectionType,
@@ -25,9 +25,8 @@ import AddPieceModal from "@/components/AddPieceModal";
 import PieceDossierModal from "@/components/PieceDossierModal";
 import DailyOutfitsStudio from "@/components/DailyOutfitsStudio";
 import GrokBotHub from "@/components/GrokBotHub";
-import GrokBotDrawer from "@/components/GrokBotDrawer";
 
-type ActiveSection = "wishlist" | "wardrobe" | "outfits" | "grokbot";
+type ActiveSection = "wishlist" | "wardrobe" | "outfits" | "reports";
 
 export default function MaisonArchivePage() {
   const [activeSection, setActiveSection] = useState<ActiveSection>("wishlist");
@@ -47,14 +46,13 @@ export default function MaisonArchivePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
 
-  // Modals & Drawers
+  // Modals
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [addModalCollection, setAddModalCollection] =
     useState<CollectionType>("wishlist");
   const [inspectedPiece, setInspectedPiece] = useState<SartorialPiece | null>(
     null
   );
-  const [isGrokBotDrawerOpen, setIsGrokBotDrawerOpen] = useState(false);
   const [generatingAnchorId, setGeneratingAnchorId] = useState<string | null>(
     null
   );
@@ -85,8 +83,11 @@ export default function MaisonArchivePage() {
     }
   }, []);
 
+  // Initial load + background sync every 6s so items pushed by GrokBot appear live
   useEffect(() => {
     fetchLedger();
+    const interval = setInterval(fetchLedger, 6000);
+    return () => clearInterval(interval);
   }, [fetchLedger]);
 
   useEffect(() => {
@@ -261,15 +262,6 @@ export default function MaisonArchivePage() {
                 <Plus className="w-3.5 h-3.5 text-brass-400" />
                 <span>Add Piece</span>
               </button>
-
-              <button
-                type="button"
-                onClick={() => setIsGrokBotDrawerOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-parchment-50 hover:bg-parchment-200 border border-espresso-900/20 text-espresso-900 text-xs font-mono uppercase tracking-wider rounded-sm transition"
-              >
-                <Bot className="w-3.5 h-3.5 text-brass-600" />
-                <span>Ask GrokBot</span>
-              </button>
             </div>
           </div>
 
@@ -293,9 +285,9 @@ export default function MaisonArchivePage() {
                   icon: Wand2,
                 },
                 {
-                  id: "grokbot",
-                  label: "GrokBot",
-                  icon: Bot,
+                  id: "reports",
+                  label: "Price Reports & Sync",
+                  icon: Activity,
                 },
               ].map((tab) => {
                 const Icon = tab.icon;
@@ -402,7 +394,7 @@ export default function MaisonArchivePage() {
                     ? "Your wishlist is empty."
                     : "Your wardrobe is empty."}
                 </p>
-                <div className="flex items-center justify-center gap-2.5">
+                <div className="flex items-center justify-center">
                   <button
                     type="button"
                     onClick={() => {
@@ -416,14 +408,6 @@ export default function MaisonArchivePage() {
                       Add to{" "}
                       {activeSection === "wishlist" ? "Wishlist" : "Wardrobe"}
                     </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsGrokBotDrawerOpen(true)}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-parchment-100 border border-espresso-900/20 text-espresso-900 text-xs font-mono uppercase tracking-wider rounded-sm"
-                  >
-                    <Bot className="w-3.5 h-3.5 text-brass-600" />
-                    <span>Add via GrokBot</span>
                   </button>
                 </div>
               </div>
@@ -471,7 +455,7 @@ export default function MaisonArchivePage() {
           />
         )}
 
-        {activeSection === "grokbot" && (
+        {activeSection === "reports" && (
           <GrokBotHub
             reports={reports}
             events={events}
@@ -481,20 +465,12 @@ export default function MaisonArchivePage() {
               setReports((prev) => [rep, ...prev]);
               showToast("Price check complete.");
             }}
-            onPieceCreated={(p) => {
-              setPieces((prev) => [p, ...prev]);
-              showToast(`Added ${p.title}.`);
-            }}
-            onOutfitCreated={(o) => {
-              setOutfits((prev) => [o, ...prev]);
-              showToast(`Generating ${o.title}...`);
-            }}
             onRefreshLedger={fetchLedger}
           />
         )}
       </main>
 
-      {/* Modals & GrokBot Slide-Over Drawer */}
+      {/* Modals */}
       <AddPieceModal
         isOpen={isAddModalOpen}
         defaultCollection={addModalCollection}
@@ -512,25 +488,6 @@ export default function MaisonArchivePage() {
         onGenerateOutfit={handleGenerateOutfitAroundPiece}
         onUpdatePiece={handleUpdatePiece}
         onDeletePiece={handleDeletePiece}
-      />
-
-      <GrokBotDrawer
-        isOpen={isGrokBotDrawerOpen}
-        onClose={() => setIsGrokBotDrawerOpen(false)}
-        onPieceCreated={(p) => {
-          setPieces((prev) => [p, ...prev]);
-          showToast(`Added ${p.title}.`);
-        }}
-        onOutfitCreated={(o) => {
-          setOutfits((prev) => [o, ...prev]);
-          setActiveSection("outfits");
-          showToast(`Generating ${o.title}...`);
-        }}
-        onReportCreated={(r) => {
-          setReports((prev) => [r, ...prev]);
-          showToast("Price check complete.");
-        }}
-        onRefreshLedger={fetchLedger}
       />
     </div>
   );
